@@ -1,0 +1,5 @@
+---
+- hosts: test-ansible
+  vars:
+  tasks:
+  - name: Get facts through "setup" ansible module
