@@ -11,10 +11,10 @@
       state: directory
 
   - name: Grab full path access logs, get the last 500 from them. The little reverse bit is grabbing the parent directory of the log file
-    shell: find `pwd` /var/log -iname *access* | while read line; do name=$(echo $line | rev | cut -d "/" -f2 | rev); tail -500 $line > /opt/linode-tmp.d/access-$name.txt;  done;
+    shell: find `pwd` /var/log -not -iname "*.gz*" -iname *access* | while read line; do name=$(echo $line | rev | cut -d "/" -f2 | rev); tail -500 $line > /opt/linode-tmp.d/access-$name.txt;  done;
 
   - name: Grab full path to error logs, get the last 500 from them. The little reverse bit is grabbing the parent directory of the log file
-    shell: find `pwd` /var/log -iname *error* | while read line; do name=$(echo $line | rev | cut -d "/" -f2 | rev); tail -500 $line > /opt/linode-tmp.d/error-$name.txt;  done;
+    shell: find `pwd` /var/log -not -iname "*.gz*" -iname *error* | while read line; do name=$(echo $line | rev | cut -d "/" -f2 | rev); tail -500 $line > /opt/linode-tmp.d/error-$name.txt;  done;
 
   - name: Fetch the files we made
     fetch:
