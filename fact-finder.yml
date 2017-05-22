@@ -21,6 +21,11 @@
       src: /opt/liode-tmp.d/*
       dest: ~/grabbed-facts.d/
 
+  - name: Show all listed units of it's SysVinit
+    shell: service --status-all
+
+  - name: Sholw all units if not
+    shell: systemctl -a
   #- name: Create a custome fact directory to force fact gathering
    # file:
    #   path: /etc/ansible/facts.d
@@ -29,7 +34,8 @@
 #      src: files/apache.fact
 #      dest: /etc/ansible/facts.d/apache.fact
 #      mode: 0755
-#  - name: "Re-run setup to use custom facts"
-#    setup: ~ 
+
+  - name: "Re-run setup to use custom facts"
+    setup: ~ 
   roles:
     - { role: f500.dumpall, dumpall_host_destination: /tmp/examine.dump }
