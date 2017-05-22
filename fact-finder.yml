@@ -1,5 +1,35 @@
 ---
 - hosts: test-ansible
+  remote_user: root
   vars:
   tasks:
-  - name: Get facts through "setup" ansible module
+# https://medium.com/@jezhalford/ansible-custom-facts-1e1d1bf65db8
+
+  - name: Create tmp linode directory
+    file:
+      path: /opt/linode-tmp.d/
+      state: directory
+
+  - name: Grab full path access logs, get the last 500 from them. The little reverse bit is grabbing the parent directory of the log file
+    shell: find `pwd` /var/log -iname *access* | while read line; do name=$(echo $line | rev | cut -d "/" -f2 | rev); tail -500 $line > /opt/linode-tmp.d/access-$name.txt;  done;
+
+  - name: Grab full path to error logs, get the last 500 from them. The little reverse bit is grabbing the parent directory of the log file
+    shell: find `pwd` /var/log -iname *error* | while read line; do name=$(echo $line | rev | cut -d "/" -f2 | rev); tail -500 $line > /opt/linode-tmp.d/error-$name.txt;  done;
+
+  - name: Fetch the files we made
+    fetch:
+      src: /opt/liode-tmp.d/*
+      dest: ~/grabbed-facts.d/
+
+  #- name: Create a custome fact directory to force fact gathering
+   # file:
+   #   path: /etc/ansible/facts.d
+   #   state: directory
+#    copy:
+#      src: files/apache.fact
+#      dest: /etc/ansible/facts.d/apache.fact
+#      mode: 0755
+#  - name: "Re-run setup to use custom facts"
+#    setup: ~ 
+  roles:
+    - { role: f500.dumpall, dumpall_host_destination: /tmp/examine.dump }
