@@ -65,7 +65,7 @@
           "Grab strace of the PHP preprocessor. First php process found should be the parent, and attaching strace to it will give us good info
           This command works by taking the first PID returned by pgrep, which should be the parent PID, and attaching it to strace.
           'tr' splits by newlines , and then sends it through to xargs. Xargs will take the stdin piped to it, and prefix it to the command. -n 1 limits it to one arg."
-    shell: pgrep php | tr '\n' ' ' |  timeout 60 xargs -n 1 strace -c -o /opt/linode-tmp.d/strace-php.txt -p
+    shell: if [ $(pgrep php | tr '\n' ' ' |  timeout 60 xargs -n 1 strace -c -o /opt/linode-tmp.d/strace-php.txt -p) !=0 ]; then echo "Php strace failed!" > /opt/linode-tmp.d/strace-php.txt; else echo 0; fi
 
   #- name: Create a custome fact directory to force fact gathering
    # file:
