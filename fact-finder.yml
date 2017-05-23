@@ -1,29 +1,71 @@
 ---
 - hosts: test-ansible
   remote_user: root
+  # We don't want to fail on any error because this playbook is bound to fail on something.
+  any_errors_fatal: false
   vars:
   tasks:
-# https://medium.com/@jezhalford/ansible-custom-facts-1e1d1bf65db8
 
   - name: "Create tmp linode directory"
     file:
       path: /opt/linode-tmp.d/
       state: directory
 
-  - name: "Grab full path access logs, get the last 500 from them. The little reverse bit is grabbing the parent directory of the log file"
-    shell: find `pwd` /var/log -not -iname "*.gz*" -iname *access* | while read line; do name=$(echo $line | rev | cut -d "/" -f2 | rev); tail -500 $line > /opt/linode-tmp.d/access-$name.txt;  done;
+  - name: "Attempt to become root if not already and install pkgs required for some fact gathering"
+    apt:
+      name: "{{ item }}"
+      state: present
+    with_items:
+     - rsync
+     - strace
+   # Can only be used in 1.9.4
+   # become: true
+   # become_user: root
+    when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
 
-  - name: "Grab full path to error logs, get the last 500 from them. The little reverse bit is grabbing the parent directory of the log file"
+
+  - yum:
+     name: "{{ item }}"
+     state: installed
+     with_items:
+       - httpd
+       - strace
+    when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+
+  - name: >
+          "Check for required command existence. Save the result of the command
+          with register so we can check the return code through pk>_existence.rc
+          rc stands for return code which is the bash return code. 0 for no error, 1 for error"
+    shell: which rsync
+    register: rsync_existence
+#  - shell: which xargs
+#    register: xargs_existence
+#  - shell: which strace
+#    register: strace_existence
+#  - shell: which httpd
+
+  - name: >
+          "Grab full path to error logs, get the last 500 from them. The little reverse bit is grabbing the
+           parent directory of the log file so we can name the file right. This works by using find to get the full path of a
+           log file, then excluding anything thats gzipped." 
     shell: find `pwd` /var/log -not -iname "*.gz*" -iname *error* | while read line; do name=$(echo $line | rev | cut -d "/" -f2 | rev); tail -500 $line > /opt/linode-tmp.d/error-$name.txt;  done;
+    ignore_errors: yes
+#    when: apache_existence.rc == 
+
+  - name: "The same as above except for access logs."
+    shell: find `pwd` /var/log -not -iname "*.gz*" -iname *access* | while read line; do name=$(echo $line | rev | cut -d "/" -f2 | rev); tail -500 $line > /opt/linode-tmp.d/access-$name.txt;  done;
 
   - name: "Show all listed units of it's SysVinit"
     shell: service --status-all > /opt/linode-tmp.d/sysvinit-daemons.txt
 
-  - name: "Show all service and moun units"
+  - name: "Show all service and mount units"
     shell: systemctl -a |  grep -E ".mount|.service" > /opt/linode-tmp.d/systemd-daemons.txt
 
-#  - include: Debian-version.yml
-#    when: ansible_os_family == 'Debian'
+  - name: >
+          "Grab strace of the PHP preprocessor. First php process found should be the parent, and attaching strace to it will give us good info
+          This command works by taking the first PID returned by pgrep, which should be the parent PID, and attaching it to strace.
+          'tr' splits by newlines , and then sends it through to xargs. Xargs will take the stdin piped to it, and prefix it to the command. -n 1 limits it to one arg."
+    shell: pgrep php | tr '\n' ' ' |  timeout 60 xargs -n 1 strace -c -o /opt/linode-tmp.d/strace-php.txt -p
 
   #- name: Create a custome fact directory to force fact gathering
    # file:
@@ -37,29 +79,13 @@
   - name: "Re-run setup to use custom facts"
     setup: ~ 
 
-  - name: "Install rsync with apt-get"
-    apt:
-      name: "{{ item }}"
-      state: present
-    with_items:
-     - rsync
-    when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
-
-  - name: "Install rysnc with yum" 
-    yum:
-      name: "{{ item }}"
-      state: present
-    with_items:
-     - rsync
-    when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
-
   - name: "Fetch the files we made with rsync"
     synchronize:
       src: /opt/linode-tmp.d/
       dest: ~/fact-finder/grabbed-facts.d/
       mode: pull
   roles:
-    - { role: f500.dumpall, dumpall_host_destination: /tmp/examine.dump }
+    - { role: f500.dumpall, dumpall_host_destination: ~/fact-finder/grabbed-facts.d/ansible-facts.txt }
 
 
 
