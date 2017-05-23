@@ -5,27 +5,26 @@
   tasks:
 # https://medium.com/@jezhalford/ansible-custom-facts-1e1d1bf65db8
 
-  - name: Create tmp linode directory
+  - name: "Create tmp linode directory"
     file:
       path: /opt/linode-tmp.d/
       state: directory
 
-  - name: Grab full path access logs, get the last 500 from them. The little reverse bit is grabbing the parent directory of the log file
+  - name: "Grab full path access logs, get the last 500 from them. The little reverse bit is grabbing the parent directory of the log file"
     shell: find `pwd` /var/log -not -iname "*.gz*" -iname *access* | while read line; do name=$(echo $line | rev | cut -d "/" -f2 | rev); tail -500 $line > /opt/linode-tmp.d/access-$name.txt;  done;
 
-  - name: Grab full path to error logs, get the last 500 from them. The little reverse bit is grabbing the parent directory of the log file
+  - name: "Grab full path to error logs, get the last 500 from them. The little reverse bit is grabbing the parent directory of the log file"
     shell: find `pwd` /var/log -not -iname "*.gz*" -iname *error* | while read line; do name=$(echo $line | rev | cut -d "/" -f2 | rev); tail -500 $line > /opt/linode-tmp.d/error-$name.txt;  done;
 
-  - name: Fetch the files we made
-    fetch:
-      src: /opt/liode-tmp.d/*
-      dest: ~/grabbed-facts.d/
+  - name: "Show all listed units of it's SysVinit"
+    shell: service --status-all > /opt/linode-tmp.d/sysvinit-daemons.txt
 
-  - name: Show all listed units of it's SysVinit
-    shell: service --status-all
+  - name: "Show all service and moun units"
+    shell: systemctl -a |  grep -E ".mount|.service" > /opt/linode-tmp.d/systemd-daemons.txt
 
-  - name: Sholw all units if not
-    shell: systemctl -a
+#  - include: Debian-version.yml
+#    when: ansible_os_family == 'Debian'
+
   #- name: Create a custome fact directory to force fact gathering
    # file:
    #   path: /etc/ansible/facts.d
@@ -37,5 +36,30 @@
 
   - name: "Re-run setup to use custom facts"
     setup: ~ 
+
+  - name: "Install rsync with apt-get"
+    apt:
+      name: "{{ item }}"
+      state: present
+    with_items:
+     - rsync
+    when: ansible_distribution == 'Debian' or ansible_distribution == 'Ubuntu'
+
+  - name: "Install rysnc with yum" 
+    yum:
+      name: "{{ item }}"
+      state: present
+    with_items:
+     - rsync
+    when: ansible_distribution == 'CentOS' or ansible_distribution == 'Red Hat Enterprise Linux'
+
+  - name: "Fetch the files we made with rsync"
+    synchronize:
+      src: /opt/linode-tmp.d/
+      dest: ~/fact-finder/grabbed-facts.d/
+      mode: pull
   roles:
     - { role: f500.dumpall, dumpall_host_destination: /tmp/examine.dump }
+
+
+
